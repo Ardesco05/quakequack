@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuakeQuake (QQ) - WebGIS Dasbor Bencana Lampung & Selat Sunda</title>
+    
+    <!-- Tailwind CSS Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151f32',
+                            900: '#0f172a',
+                            950: '#070a13',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="styles.css" />
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col h-screen overflow-hidden">
+
+    <!-- HEADER / BANNER UTAMA -->
+    <header class="glass-panel border-b border-slate-800 px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4 z-10 shrink-0">
+        <!-- Logo & Nama Aplikasi -->
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-tr from-red-600 to-amber-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/30">
+                <i class="fa-solid fa-house-laptop text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wider bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
+                    QUAKEQUAKE <span class="text-xs bg-red-600/20 text-red-500 border border-red-500/30 px-1.5 py-0.5 rounded font-mono">QQ v1.0</span>
+                </h1>
+                <p class="text-[10px] text-slate-400 font-medium">Sistem Informasi Geografis Kebencanaan • Lampung & Selat Sunda</p>
+            </div>
+        </div>
+
+        <!-- Indikator Koneksi API & Jam -->
+        <div class="flex flex-wrap items-center gap-3 md:gap-5">
+            <!-- Badges Koneksi -->
+            <div class="flex gap-2.5 text-[11px]">
+                <div id="api-status-bmkg" class="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-full text-slate-300 flex items-center">
+                    <span class="inline-block w-2 h-2 bg-slate-500 rounded-full mr-2"></span>BMKG Status
+                </div>
+                <div id="api-status-usgs" class="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-full text-slate-300 flex items-center">
+                    <span class="inline-block w-2 h-2 bg-slate-500 rounded-full mr-2"></span>USGS Status
+                </div>
+            </div>
+
+            <!-- Jam Digital -->
+            <div class="bg-slate-900/80 border border-slate-800 px-3.5 py-1 rounded-lg text-slate-300 text-xs font-mono shadow-inner flex items-center gap-2">
+                <i class="fa-regular fa-clock text-cyan-400"></i>
+                <span id="live-clock">Memuat Waktu...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- TICKER BERJALAN INFORMASI BENCANA -->
+    <div class="bg-slate-900 border-b border-slate-800/60 py-1.5 px-4 text-xs z-10 select-none shrink-0 marquee-container">
+        <div id="ticker-content" class="marquee-content text-slate-300">
+            <span class="text-yellow-500 font-semibold">Memuat data gempa bumi terkini dari BMKG...</span>
+        </div>
+    </div>
+
+    <!-- MAIN BODY: SIDEBAR & MAP -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        
+        <!-- SIDEBAR UTAMA (KIRI) -->
+        <aside class="w-full lg:w-[420px] glass-panel border-r border-slate-800/80 flex flex-col shrink-0 overflow-hidden lg:h-full h-[40%] order-2 lg:order-1">
+            
+            <!-- SISTEM NAVIGASI TAB SIDEBAR -->
+            <nav class="flex border-b border-slate-800 text-sm shrink-0 bg-slate-900/50">
+                <button id="tab-live" data-tab-target="#panel-live" class="flex-1 py-3 text-center font-semibold border-b-2 border-cyan-500 text-cyan-400 flex flex-col items-center gap-1 transition-all duration-200">
+                    <i class="fa-solid fa-satellite-dish text-base"></i>
+                    <span class="text-[10px] uppercase tracking-wider">Live Monitor</span>
+                </button>
+                <button id="tab-routing" data-tab-target="#panel-routing" class="flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-slate-400 flex flex-col items-center gap-1 transition-all duration-200">
+                    <i class="fa-solid fa-truck-monster text-base"></i>
+                    <span class="text-[10px] uppercase tracking-wider">Rute Logistik</span>
+                </button>
+                <button id="tab-evacuation" data-tab-target="#panel-evacuation" class="flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-slate-400 flex flex-col items-center gap-1 transition-all duration-200">
+                    <i class="fa-solid fa-person-running-fast text-base"></i>
+                    <span class="text-[10px] uppercase tracking-wider">Evakuasi</span>
+                </button>
+                <button id="tab-mitigation" data-tab-target="#panel-mitigation" class="flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-slate-400 flex flex-col items-center gap-1 transition-all duration-200">
+                    <i class="fa-solid fa-shield-halved text-base"></i>
+                    <span class="text-[10px] uppercase tracking-wider">Mitigasi</span>
+                </button>
+            </nav>
+
+            <!-- KONTEN PANEL SIDEBAR -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                
+                <!-- TAB 1: LIVE MONITOR (GEMPA BMKG) -->
+                <div id="panel-live" class="tab-content-panel space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                                <span class="flex h-2.5 w-2.5 relative">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                </span>
+                                Monitoring Gempa Live
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Gempa dirasakan & terkini di Lampung & Selat Sunda</p>
+                        </div>
+                        <button id="btn-refresh-bmkg" class="bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 hover:border-slate-600 rounded-lg p-2 text-xs transition-colors duration-200" title="Refresh Data">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+
+                    <!-- List Gempa Container -->
+                    <div id="quake-list" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                        <!-- Gempa cards akan dirender via JS -->
+                        <div class="flex items-center justify-center p-8">
+                            <span class="animate-spin inline-block w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full mr-3"></span>
+                            <span class="text-sm text-slate-400">Menghubungkan ke Pusat Data Gempa...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: RUTE ALAT BERAT & LOGISTIK (ROUTING DISASTER) -->
+                <div id="panel-routing" class="tab-content-panel hidden space-y-4">
+                    <div>
+                        <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-truck-ramp-box text-cyan-400"></i>
+                            Rute Mobilisasi Alat Berat
+                        </h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Analisis rute tol/arteri utama menghindari jalan sempit untuk kendaraan besar</p>
+                    </div>
+
+                    <!-- Form Input Posko & Lokasi -->
+                    <div class="glass-panel border border-slate-800/80 rounded-xl p-4 space-y-3">
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">1. Posko Depot Alat Berat</label>
+                            <select id="route-start" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                                <option value="">-- Pilih Posko Utama --</option>
+                            </select>
+                        </div>
+                        
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">2. Lokasi Kejadian Bencana</label>
+                            <select id="route-end" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                                <option value="">-- Pilih Wilayah Terdampak --</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-2">
+                            <button id="btn-calculate-route" class="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 transition duration-200 shadow-md shadow-cyan-950/40">
+                                <i class="fa-solid fa-route"></i> Hitung Rute
+                            </button>
+                            <button id="btn-reset-route" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 transition duration-200 border border-slate-700">
+                                <i class="fa-solid fa-trash-can"></i> Bersihkan
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Panel Detail Hasil Routing -->
+                    <div id="routing-details" class="space-y-3">
+                        <div class="text-center p-6 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                            Tentukan Posko dan Klik 'Hitung Rute Logistik' untuk memulai analisis rute jalan raya.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: JALUR EVAKUASI WARGA -->
+                <div id="panel-evacuation" class="tab-content-panel hidden space-y-4">
+                    <div>
+                        <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-person-shelter text-emerald-400"></i>
+                            Jalur Evakuasi Pesisir
+                        </h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Penentuan shelter aman dataran tinggi terdekat dari ancaman tsunami</p>
+                    </div>
+
+                    <!-- Pemilihan Pesisir Rawan -->
+                    <div class="glass-panel border border-slate-800/80 rounded-xl p-4 space-y-3">
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Titik Pesisir Keberangkatan</label>
+                            <select id="evac-start" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                                <option value="">-- Pilih Lokasi Pesisir Rawan --</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <button id="btn-calculate-evac" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 transition duration-200 shadow-md shadow-emerald-950/40">
+                                <i class="fa-solid fa-compass"></i> Cari Shelter
+                            </button>
+                            <button id="btn-reset-evac" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 transition duration-200 border border-slate-700">
+                                <i class="fa-solid fa-trash-can"></i> Bersihkan
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Detail Evakuasi -->
+                    <div id="evac-details" class="space-y-3">
+                        <div class="text-center p-6 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                            Pilih zona pesisir rawan dan Klik 'Cari Shelter' untuk melihat visualisasi evakuasi terdekat.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: PUSAT EDUKASI & MITIGASI -->
+                <div id="panel-mitigation" class="tab-content-panel hidden space-y-4">
+                    <div>
+                        <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-book-bookmark text-amber-500"></i>
+                            Edukasi & Konstruksi Tahan Gempa
+                        </h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Panduan mitigasi mandiri warga pesisir & standar struktur bangunan aman</p>
+                    </div>
+
+                    <!-- Panduan 3 Fase Mitigasi -->
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                            <i class="fa-solid fa-circle-info text-amber-500"></i>
+                            Panduan 3 Fase Kesiapsiagaan
+                        </h4>
+                        
+                        <!-- Fase Sebelum -->
+                        <details class="group bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-200">
+                            <summary class="flex justify-between items-center p-3 cursor-pointer text-xs font-semibold text-slate-200 hover:bg-slate-800/40 select-none">
+                                <span>Fase 1: Sebelum Terjadi Gempa</span>
+                                <span class="transition group-open:rotate-180 text-amber-500"><i class="fa-solid fa-chevron-down"></i></span>
+                            </summary>
+                            <div class="p-3 border-t border-slate-800/60 text-[11px] text-slate-400 space-y-2 bg-slate-950/40">
+                                <p>• <strong>Petakan Jalur Evakuasi</strong>: Ketahui rute dari rumah/kantor menuju dataran tinggi terdekat (minimal elevasi 20m).</p>
+                                <p>• <strong>Amankan Perabot</strong>: Atur posisi barang berat di bawah dan ikat lemari besar ke dinding agar tidak roboh.</p>
+                                <p>• <strong>Tas Siaga Bencana (TSB)</strong>: Siapkan tas berisi P3K, air minum, dokumen penting, senter, dan makanan instan.</p>
+                            </div>
+                        </details>
+
+                        <!-- Fase Saat -->
+                        <details class="group bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-200">
+                            <summary class="flex justify-between items-center p-3 cursor-pointer text-xs font-semibold text-slate-200 hover:bg-slate-800/40 select-none">
+                                <span>Fase 2: Saat Gempa Berlangsung</span>
+                                <span class="transition group-open:rotate-180 text-amber-500"><i class="fa-solid fa-chevron-down"></i></span>
+                            </summary>
+                            <div class="p-3 border-t border-slate-800/60 text-[11px] text-slate-400 space-y-2 bg-slate-950/40">
+                                <p>• <strong>Drop, Cover, Hold On!</strong>: Merunduk, berlindung di bawah meja kokoh, dan berpegangan sampai guncangan reda.</p>
+                                <p>• <strong>Wilayah Pesisir</strong>: Jika berada di dekat pantai dan guncangan terasa kuat > 20 detik, segera jauhi pantai menuju wilayah tinggi tanpa menunggu konfirmasi sirine.</p>
+                                <p>• <strong>Hindari Lift/Eskalator</strong>: Gunakan tangga darurat saat keluar dari gedung bertingkat.</p>
+                            </div>
+                        </details>
+
+                        <!-- Fase Sesudah -->
+                        <details class="group bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-200">
+                            <summary class="flex justify-between items-center p-3 cursor-pointer text-xs font-semibold text-slate-200 hover:bg-slate-800/40 select-none">
+                                <span>Fase 3: Sesudah Gempa Bumi</span>
+                                <span class="transition group-open:rotate-180 text-amber-500"><i class="fa-solid fa-chevron-down"></i></span>
+                            </summary>
+                            <div class="p-3 border-t border-slate-800/60 text-[11px] text-slate-400 space-y-2 bg-slate-950/40">
+                                <p>• <strong>Cek Cedera & Kebocoran</strong>: Periksa diri sendiri dan orang sekitar, serta waspadai bau gas atau korsleting listrik.</p>
+                                <p>• <strong>Gempa Susulan</strong>: Siaga terhadap potensi gempa susulan (aftershocks) yang bisa merobohkan struktur yang sudah rapuh.</p>
+                                <p>• <strong>Gunakan Jalur Evakuasi Resmi</strong>: Ikuti petunjuk petugas BPBD menuju Shelter Utama Lampung.</p>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- Standar Konstruksi Bangunan Aman -->
+                    <div class="space-y-2.5 pt-2">
+                        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-trowel-bricks text-cyan-400"></i>
+                            Struktur Tahan Gempa (SNI Standar)
+                        </h4>
+                        
+                        <div class="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-[11px] text-slate-400">
+                            <div class="flex gap-2">
+                                <span class="text-emerald-400 font-bold">1.</span>
+                                <p><strong>Pondasi yang Kokoh & Elastis</strong>: Menggunakan sloof beton bertulang yang mengikat kuat ke pondasi batu kali.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="text-emerald-400 font-bold">2.</span>
+                                <p><strong>Struktur Rangka Utama Terikat</strong>: Hubungan balok, kolom, dan ring balok harus diikat dengan angkur besi pembesian minimum &phi; 10mm.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="text-emerald-400 font-bold">3.</span>
+                                <p><strong>Atap Ringan (Baja Ringan)</strong>: Menggunakan material genteng metal atau seng di atas rangka galvalum untuk mengurangi beban atas bangunan.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="text-emerald-400 font-bold">4.</span>
+                                <p><strong>Penyediaan Evakuasi Internal</strong>: Pintu keluar bangunan publik harus membuka ke luar dengan lebar koridor minimal 1.5 meter tanpa hambatan barang.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- FOOTER INFO / COPYRIGHT -->
+            <footer class="p-3 border-t border-slate-800 bg-slate-950 text-center text-[10px] text-slate-500 shrink-0">
+                UAS Sistem Informasi Geografis (SIG) • Anti Gravity • &copy; 2026
+            </footer>
+        </aside>
+
+        <!-- KONTEN PETA UTAMA (KANAN) -->
+        <main class="flex-1 h-full relative order-1 lg:order-2">
+            <!-- Peta Leaflet Container -->
+            <div id="map" class="w-full h-full"></div>
+
+            <!-- CONTROLS OVERLAY: FLOATING LAYER SWITCHER -->
+            <div class="absolute top-4 left-4 z-[1000] glass-panel border border-slate-800/80 rounded-xl p-3.5 shadow-xl max-w-[220px]">
+                <h4 class="font-bold text-xs mb-2.5 text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-layer-group text-cyan-400"></i>
+                    Kontrol Lapisan
+                </h4>
+                <div class="space-y-2.5 text-xs text-slate-200">
+                    <label class="flex items-center gap-2.5 cursor-pointer hover:text-white transition-colors">
+                        <input type="checkbox" id="layer-quakes" checked class="w-4 h-4 rounded text-red-600 bg-slate-900 border-slate-700 focus:ring-red-500 focus:ring-offset-slate-900 accent-red-500">
+                        <span>Gempa Live (BMKG)</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 cursor-pointer hover:text-white transition-colors">
+                        <input type="checkbox" id="layer-heatmap" checked class="w-4 h-4 rounded text-yellow-600 bg-slate-900 border-slate-700 focus:ring-yellow-500 focus:ring-offset-slate-900 accent-yellow-500">
+                        <span>Heatmap (USGS)</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 cursor-pointer hover:text-white transition-colors">
+                        <input type="checkbox" id="layer-shelter" checked class="w-4 h-4 rounded text-emerald-600 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 accent-emerald-500">
+                        <span>Shelter & Posko</span>
+                    </label>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Leaflet Heatmap Plugin -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <!-- Leaflet Routing Machine JS -->
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    
+    <!-- Custom Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

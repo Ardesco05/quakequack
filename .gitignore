@@ -1,0 +1,8 @@
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDE and temporary files
+.history/
+*.log
+.gemini/
